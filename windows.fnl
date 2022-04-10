@@ -115,14 +115,42 @@
     (position-window-center ratio win screen)
     (tset hs.window :animationDuration prev-duration)))
 
+;; TODO how to duplicate hs.alert module._visibleAlerts?
+;; TODO currently only supports single timer for collection
+(global _visibleConfirmations {})
+
+(fn confirmation-alert [text action-fn]
+  "Displays an alert that confirms an action, then automatically dismisses if the action is taken or the timeout is reached."
+  (let [timeout 4
+        cleanup #(let [{:timer timer :binding binding :alert alert} _visibleConfirmations]
+                    (do
+                      (timer:stop)
+                      (binding:delete)
+                      (hs.alert.closeSpecific alert)
+                      (global _visibleConfirmations nil)))
+        alert (hs.alert (.. text " y to continue") timeout)
+        binding (hs.hotkey.bind nil :y (fn [] (do (cleanup) (action-fn))))
+        timer (hs.timer.doAfter timeout cleanup)]
+    (global _visibleConfirmations {:timer timer :binding binding :alert alert})))
+
 (fn activate-app
-  [app-name]
+  [app-name args]
   (hs.application.launchOrFocus app-name)
-  (let [app (hs.application.find app-name)]
+  (let [{:on-focused on-focused} (or args {})
+        app (hs.application.find app-name)]
     (when app
       (: app :activate)
       (hs.timer.doAfter .05 highlight-active-window)
-      (: app :unhide))))
+      (: app :unhide)
+      (if on-focused (on-focused)))))
+
+(fn focus-app
+  [app-name args]
+  (let [app (hs.application.find app-name)
+        activate-fn #(activate-app app-name args)]
+    (if app
+        (activate-fn)
+        (confirmation-alert (.. app-name " not active.\nLaunch it?\n") activate-fn))))
 
 (fn set-mouse-cursor-at
   [app-title]
@@ -521,6 +549,7 @@
  : center-window-frame
  : enter-window-menu
  : exit-window-menu
+ : focus-app
  : hide-display-numbers
  : highlight-active-window
  : init
