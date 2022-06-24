@@ -4,6 +4,8 @@
         : concat
         : contains?
         : map
+        : find
+        : first
         : for-each
         : split} (require :lib.functional))
 (local {:global-filter global-filter} (require :lib.utils))
@@ -133,24 +135,40 @@
         timer (hs.timer.doAfter timeout cleanup)]
     (global _visibleConfirmations {:timer timer :binding binding :alert alert})))
 
+(fn show-app [app]
+  (do
+    (: app :activate)
+    (hs.timer.doAfter .05 highlight-active-window)
+    (: app :unhide)))
+
 (fn activate-app
   [app-name args]
   (hs.application.launchOrFocus app-name)
   (let [{:on-focused on-focused} (or args {})
         app (hs.application.find app-name)]
     (when app
-      (: app :activate)
-      (hs.timer.doAfter .05 highlight-active-window)
-      (: app :unhide)
+      (show-app app)
       (if on-focused (on-focused)))))
+
+(fn first-open-app
+  [app-names]
+  (find #(hs.application $1) app-names))
 
 (fn focus-app
   [app-name args]
-  (let [app (hs.application.find app-name)
+  (let [app (hs.application app-name)
         activate-fn #(activate-app app-name args)]
     (if app
         (activate-fn)
         (confirmation-alert (.. app-name " not active.\nLaunch it?\n") activate-fn))))
+
+(fn focus-app-in-order
+  [...]
+  "Looks through the arguments for an open app, and activates the first
+   one found. If none of the provided apps are open, it gives the user
+   the option to open the first one in the list."
+  (let [app-name (or (first-open-app [...]) (first [...]))]
+    (focus-app app-name)))
 
 (fn set-mouse-cursor-at
   [app-title]
@@ -550,6 +568,7 @@
  : enter-window-menu
  : exit-window-menu
  : focus-app
+ : focus-app-in-order
  : hide-display-numbers
  : highlight-active-window
  : init
